@@ -82,6 +82,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .textopt { display: flex; flex-wrap: wrap; gap: 8px; }
 .fam { display: grid; gap: 6px; }
 .fam small { font-size: 12px; color: var(--muted); }
+.fam small .fp { font-weight: 500; color: var(--ink); margin-left: 6px; font-family: var(--mono); font-size: 11.5px; }
+.line .cap { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); margin-top: -2px; }
 .dots { display: flex; flex-wrap: wrap; gap: 8px; }
 .dot { width: 40px; height: 40px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--line) center/cover; position: relative; }
 .dot[aria-pressed="true"]::after { content: ""; position: absolute; inset: -4px; border: 1.5px solid var(--ink); border-radius: 50%; }
@@ -330,7 +332,7 @@ function price(pi, S, cur) {
     if (!req) { req = sizeOpt && sizeOpt.req ? sizeOpt.req[k] : null; from = 'size'; }
     const v = (per || 0) * (req || 0);
     if (!ipanemaCOM) opts += v;
-    const line = { t: s.title, sub: `${f.fam.title} ${f.sw.title}`, v, calc: [reqField, '×', swField], skip: ipanemaCOM };
+    const line = { t: s.title, sub: `${f.fam.title} ${f.sw.title}`, v, calc: [reqField, '×', swField], cap: `${k === 'fabric' ? 'COM' : 'COL'} × ${f.fam.title} ${f.sw.title} price per ${UNIT[k]}`, skip: ipanemaCOM };
     if (ipanemaCOM) line.note = "Not charged: on this product the site ignores the other parts when any part is client's own material.";
     if (from === 'size') line.note = `No amount on this part, so the size's ${k === 'fabric' ? 'COM' : 'COL'} (${req ?? 'none'} ${UNIT[k]}) is used.`;
     else if (zi > -1 && sizeOpt.req && sizeOpt.req[k] != null && sizeOpt.req[k] !== req) line.note = `The ${req} ${UNIT[k]} on this part wins over the size's ${k === 'fabric' ? 'COM' : 'COL'} of ${sizeOpt.req[k]} ${UNIT[k]}. Clear it to use the size's amount.`;
@@ -384,7 +386,9 @@ function renderConfig() {
         body = `<div class="toggle">${s.types.map(x => `<button type="button" aria-pressed="${x.key === kind}" data-kind="${esc(s.key)}" data-val="${x.key}">${x.key === 'fabric' ? 'Fabric' : 'Leather'}</button>`).join('')}</div>`;
         body += t.families.map(fk => {
           const fam = data.families[t.key][fk];
-          return `<div class="fam"><small>${esc(fam.title)}</small><div class="dots">${fam.swatches.map(k => `<button type="button" class="dot" title="${esc(fam.title)} ${esc(data.swatches[t.key][k].title)}" aria-label="${esc(fam.title)} ${esc(data.swatches[t.key][k].title)}" aria-pressed="${v === k}" data-set="${esc(s.key)}" data-val="${esc(k)}" style="background-image:url(${IMG['sw:' + k] || ''})"></button>`).join('')}</div></div>`;
+          const ps = fam.swatches.map(k => data.swatches[t.key][k][ui.cur] / 100), lo = Math.min(...ps), hi = Math.max(...ps);
+          const fp = `${SYM[ui.cur]}${lo.toLocaleString('en-GB')}${hi !== lo ? `–${hi.toLocaleString('en-GB')}` : ''}/${UNIT[t.key]}`;
+          return `<div class="fam"><small>${esc(fam.title)} <b class="fp">${fp}</b></small><div class="dots">${fam.swatches.map(k => `<button type="button" class="dot" title="${esc(fam.title)} ${esc(data.swatches[t.key][k].title)}" aria-label="${esc(fam.title)} ${esc(data.swatches[t.key][k].title)}" aria-pressed="${v === k}" data-set="${esc(s.key)}" data-val="${esc(k)}" style="background-image:url(${IMG['sw:' + k] || ''})"></button>`).join('')}</div></div>`;
         }).join('');
         if (t.custom) body += `<div class="fam"><small>Client's own ${t.key}</small><div class="dots"><button type="button" class="dot com" aria-label="Client's own ${t.key}" title="Client's own ${t.key}" aria-pressed="${v === 'custom-' + t.key}" data-set="${esc(s.key)}" data-val="custom-${t.key}">?</button></div></div>`;
       }
@@ -407,7 +411,7 @@ const calcHtml = parts => parts.filter(x => x != null).map(x => typeof x === 'st
 function renderPanel() {
   const S = sel();
   const r = price(ui.product, S, ui.cur);
-  $('lines').innerHTML = r.lines.map((l, i) => `<div class="line${l.skip ? ' skip' : ''}" data-line="${i}"><span class="t">${esc(l.t)} <span>${esc(l.sub || '')}</span></span><span class="v">${exact(l.v)}</span>${l.calc ? `<span class="calc">${calcHtml(l.calc)}</span>` : ''}${l.spec ? `<span class="spec">${calcHtml(l.spec)}</span>` : ''}${l.note ? `<span class="note">${esc(l.note)}</span>` : ''}</div>`).join('');
+  $('lines').innerHTML = r.lines.map((l, i) => `<div class="line${l.skip ? ' skip' : ''}" data-line="${i}"><span class="t">${esc(l.t)} <span>${esc(l.sub || '')}</span></span><span class="v">${exact(l.v)}</span>${l.calc ? `<span class="calc">${calcHtml(l.calc)}</span>` : ''}${l.cap ? `<span class="cap">${esc(l.cap)}</span>` : ''}${l.spec ? `<span class="spec">${calcHtml(l.spec)}</span>` : ''}${l.note ? `<span class="note">${esc(l.note)}</span>` : ''}</div>`).join('');
   renderTotals(r);
 }
 
@@ -449,7 +453,7 @@ document.addEventListener('click', e => {
   if (b.id === 'dclose') return closeDrawer();
   if (b.dataset.pick) { ui.product = +b.dataset.pick; ui.open = null; $('drawer').hidden = true; $('scrim').hidden = true; }
   else if (b.dataset.p) { ui.product = +b.dataset.p; ui.open = null; }
-  else if (b.dataset.cur) ui.cur = b.dataset.cur;
+  else if (b.dataset.cur) ui.cur = b.dataset.cur; // also re-labels the family prices
   else if (b.dataset.open) ui.open = ui.open === +b.dataset.open ? null : +b.dataset.open;
   else if (b.dataset.set) S[b.dataset.set] = b.dataset.val;
   else if (b.dataset.kind) {
@@ -479,7 +483,7 @@ document.addEventListener('input', e => {
   save(); renderTotals();
 });
 // Re-draw once a number is done, so notes and crossed-out lines catch up.
-document.addEventListener('change', e => { if (e.target.dataset.path) renderPanel(); });
+document.addEventListener('change', e => { if (e.target.dataset.path) { renderConfig(); renderPanel(); } });
 
 function changes() {
   const out = [], eu = c => c == null ? 'empty' : '€' + (c / 100).toFixed(2);
