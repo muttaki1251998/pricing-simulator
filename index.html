@@ -27,6 +27,7 @@
   color-scheme: light;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { background: var(--page); color: var(--ink); font: 15px/1.4 var(--sans); }
 button { font: inherit; color: inherit; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -428,14 +429,10 @@ function renderAll() { renderProducts(); renderConfig(); renderPanel(); }
 // ---------- Drawer ----------
 function renderDrawer() {
   const q = $('dsearch').value.trim().toLowerCase();
-  const groups = {};
-  data.products.forEach((p, i) => {
-    if (p.highlight) return;
-    if (q && !p.name.toLowerCase().includes(q) && !p.category.toLowerCase().includes(q)) return;
-    (groups[p.category] = groups[p.category] || []).push([p, i]);
-  });
-  const names = Object.keys(groups);
-  $('dlist').innerHTML = names.length ? names.map(g => `<div class="grp"><small>${esc(g)}</small>${groups[g].map(([p, i]) => `<button type="button" data-pick="${i}" aria-current="${i === ui.product}">${esc(p.name)}${p.mode === 'fixed' ? '<em>fixed price</em>' : ''}</button>`).join('')}</div>`).join('') : '<p class="empty">No products match.</p>';
+  const list = data.products.map((p, i) => [p, i])
+    .filter(([p]) => !p.highlight && (!q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)))
+    .sort(([a], [b]) => a.name.localeCompare(b.name));
+  $('dlist').innerHTML = list.length ? `<div class="grp">${list.map(([p, i]) => `<button type="button" data-pick="${i}" aria-current="${i === ui.product}">${esc(p.name)}<em>${p.mode === 'fixed' ? 'fixed price' : esc(p.category)}</em></button>`).join('')}</div>` : '<p class="empty">No products match.</p>';
 }
 function openDrawer() { $('drawer').hidden = false; $('scrim').hidden = false; $('dsearch').value = ''; renderDrawer(); $('dsearch').focus(); }
 function closeDrawer() { $('drawer').hidden = true; $('scrim').hidden = true; $('dopen')?.focus(); }
