@@ -185,8 +185,8 @@ const MULT = { eur: 1, usd: 1.2, cad: 1.6 };
 const SYM = { eur: '€', usd: '$', cad: 'CA$' };
 const UNIT = { fabric: 'm', leather: 'm²' };
 const STORE = 'mop-pricing-sim-v3';
-// Products where client's own material on any of these parts replaces every
-// other option charge with a flat percentage of the base.
+// Products where client's own material on any of these parts adds a
+// percentage of the base once; the other parts are still charged.
 const COM_ALL = { 'rua-ipanema': ['cushion', 'frame', 'LOMBARD-TOSS-CUSHION'], 'rua-leblon': ['FRAME', 'SEAT-CUSHION'], 'rua-leblon-ottoman': ['FRAME', 'SEAT-CUSHION'] };
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -256,8 +256,7 @@ function price(pi, S, cur) {
   let opts = 0;
   const comParts = COM_ALL[p.handle] || [];
   const custParts = comParts.filter(k => isCustom(S[k]));
-  const ipanemaCOM = custParts.length > 0;
-  if (ipanemaCOM) {
+  if (custParts.length > 0) {
     opts = base * pct;
     lines.push({ t: "Client's own material", sub: custParts.length === comParts.length ? 'all parts' : `${custParts.length} of ${comParts.length} parts`, v: opts, calc: [pctField, `of base ${exact(base)}`] });
   }
@@ -275,8 +274,8 @@ function price(pi, S, cur) {
       if (priced(tp)) { v += (o.price || 0) * m; calc.push(F(tp, { money: 1, eur: 1 }), m !== 1 ? `× ${m}` : null); }
       if (lp && priced(lp)) { v += (s.leather.options[li].price || 0) * m; calc.push(calc.length ? '+' : null, F(lp, { money: 1, eur: 1 }), m !== 1 ? `× ${m}` : null); }
       if (!calc.length) return; // no price on this choice
-      if (!ipanemaCOM) opts += v;
-      lines.push({ t: s.title, sub: o.title + (li > -1 ? ` · ${s.leather.options[li].title}` : ''), v, calc, skip: ipanemaCOM });
+      opts += v;
+      lines.push({ t: s.title, sub: o.title + (li > -1 ? ` · ${s.leather.options[li].title}` : ''), v, calc });
       return;
     }
     if (s.kind === 'options') {
@@ -291,8 +290,8 @@ function price(pi, S, cur) {
       }
       if (!priced(`products.${pi}.steps.${si}.options.${oi}.price`)) return; // no price on this choice
       const v = o.price * m;
-      if (!ipanemaCOM) opts += v;
-      const line = { t: s.title, sub: o.title, v, calc: [F(`products.${pi}.steps.${si}.options.${oi}.price`, { money: 1, eur: 1 }), m !== 1 ? `× ${m}` : null], skip: ipanemaCOM };
+      opts += v;
+      const line = { t: s.title, sub: o.title, v, calc: [F(`products.${pi}.steps.${si}.options.${oi}.price`, { money: 1, eur: 1 }), m !== 1 ? `× ${m}` : null] };
       if (o.req && (o.req.fabric != null || o.req.leather != null)) {
         line.spec = ['Size', F(`products.${pi}.steps.${si}.options.${oi}.req.fabric`, { pre: 'COM', suffix: 'm', small: 1, blank: 1 }), F(`products.${pi}.steps.${si}.options.${oi}.req.leather`, { pre: 'COL', suffix: 'm²', small: 1, blank: 1 })];
       }
@@ -303,7 +302,7 @@ function price(pi, S, cur) {
     const v0 = S[s.key];
     if (!v0) return;
     if (isCustom(v0)) {
-      if (ipanemaCOM) return;
+      if (comParts.includes(s.key)) return; // charged once, above
       const kind = v0 === 'custom-leather' ? 'leather' : 'fabric';
       if (p.handle === 'park-place-stool') {
         const fi = p.steps.findIndex(x => x.key.toLowerCase() === 'finish');
@@ -331,9 +330,8 @@ function price(pi, S, cur) {
     let req = f.t.requirement, from = 'step';
     if (!req) { req = sizeOpt && sizeOpt.req ? sizeOpt.req[k] : null; from = 'size'; }
     const v = (per || 0) * (req || 0);
-    if (!ipanemaCOM) opts += v;
-    const line = { t: s.title, sub: `${f.fam.title} ${f.sw.title}`, v, calc: [reqField, '×', swField], cap: `${k === 'fabric' ? 'COM' : 'COL'} × ${f.fam.title} ${f.sw.title} price per ${UNIT[k]}`, skip: ipanemaCOM };
-    if (ipanemaCOM) line.note = "Not charged: on this product the site ignores the other parts when any part is client's own material.";
+    opts += v;
+    const line = { t: s.title, sub: `${f.fam.title} ${f.sw.title}`, v, calc: [reqField, '×', swField], cap: `${k === 'fabric' ? 'COM' : 'COL'} × ${f.fam.title} ${f.sw.title} price per ${UNIT[k]}` };
     if (from === 'size') line.note = `No amount on this part, so the size's ${k === 'fabric' ? 'COM' : 'COL'} (${req ?? 'none'} ${UNIT[k]}) is used.`;
     else if (zi > -1 && sizeOpt.req && sizeOpt.req[k] != null && sizeOpt.req[k] !== req) line.note = `The ${req} ${UNIT[k]} on this part wins over the size's ${k === 'fabric' ? 'COM' : 'COL'} of ${sizeOpt.req[k]} ${UNIT[k]}. Clear it to use the size's amount.`;
     lines.push(line);
